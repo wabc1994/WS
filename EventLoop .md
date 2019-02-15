@@ -39,7 +39,8 @@ Channel 是Reactor 结构当中的”事件", 也就是reactor基于事件模型
 channel_->setReadHandler(bind(&HttpData::handleRead, this));
 
 channel_->setWriteHandler(bind(&HttpData::handleWrite, this));
- channel_->setConnHandler(bind(&HttpData::handleConn, this));
+
+channel_->setConnHandler(bind(&HttpData::handleConn, this));
 
 ```
 

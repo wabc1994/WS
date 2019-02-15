@@ -25,6 +25,10 @@
 # AsyncLogging 前台程序append 追加到缓冲区
 可以看到前台线程所做的工作比较简单，如果currentBuffer_够用，就把日志内容写入到currentBuffer_中，如果不够用(就认为其满了)，就把currentBuffer_放到已满buffer数组中，等待消费者线程（即后台线程）来取。并且把currentBuffer_指向nextBuffer_的buffer。
 
+1. 当前缓冲区
+2. 备用缓冲区
+3. 缓冲区向量
+
 AsyncLogging::append(） 主要是这个函数
 
 # 日志线程threadfuc write进行磁盘I/O
