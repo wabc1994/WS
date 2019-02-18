@@ -39,9 +39,9 @@ HTTP协议是放在URL 后面的，找到对应的主机后server后，server端
 
 
 
-# 结构
-1. request line method  uri 协议版本 
-2.  request header
+# http请求报文结构
+1. request line method  uri 协议版本  
+2. request header
 3. 空行
 4. 请求数据
 
@@ -53,7 +53,12 @@ HTTP协议是放在URL 后面的，找到对应的主机后server后，server端
  
  排版方式 
  
- 头部字段名称 空格 值   
+ - 头部字段名称 空格 值   
+ 
+	- Host 主机：ip地址
+ 	- Cookie: sessionid
+ 	- Agent- : 浏览器代理
+ 	- Connection: keep alive or close 长连接还是短连接
  
  ![http结构](https://github.com/wabc1994/WS/blob/master/pic/http%20struct.png)
  
@@ -61,11 +66,21 @@ HTTP协议是放在URL 后面的，找到对应的主机后server后，server端
 
 - mime 多媒体类型
 
+## http响应报文
+1. 状态行
+2. 消息报文
+3. 响应正文
+
+**HEAD就像GET，只不过服务端接受到HEAD请求后只返回响应头，而不会发送响应内容。当我们只需要查看某个页面的状态的时候，使用HEAD是非常高效的，因为在传输的过程中省去了页面内容。此方法经常被用来测试超文本链接的有效性，可访问性，和最近的改变。**
+
+## 不同请求方法请求报文和响应报文的区别
+1. 请求数据不在GET 方法中使用，而是在POST 方法中使用，与请求数据相关的请求头为Content-Type 和Content-Length
+
 # HTTP 协议特点
 get和post方法， get 方法请求的参数是同过url显示的，而post 不是
 
-1. 无连接
-2. 无状态 ，也就是不记客户端，即使同一个客户端接连发送连个http请求，服务器也不知道这两个请求是来自于同一个客户端，为了解决这个问题，引入了cookies机制
+1. 无连接，每一次请求都是要重新建立一个连接
+2. 无状态 ，也就是不记客户端，即使同一个客户端接连发送连个http请求，服务器也不知道这两个请求是来自于同一个客户端，为了解决这个问题，引入了cookies机制和session机制，
 
 
 

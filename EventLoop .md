@@ -7,17 +7,24 @@ EventLoop有许多变量，几个bool变量，looping_：是否正在执行loop�
 一个eventLoop 可以对应多个channel
 
 ## event 系列函数
-- Loop事件循环
+- loop()
 - isRunLoop()
 - queueInLoop()
 - doPendingFunctors
 
-下面的关键 就是 Loop()  如何进行进行处理I/0事件
+下面的关键 就是 loop()  如何进行进行处理I/0事件,以及超时时间
 
 
 # Channel 
+
+
+
 Channel 是Reactor 结构当中的”事件", 也就是reactor基于事件模型当中的事件源问题，说白了我们可以把channel 简单得理解为文件描述符，也就是我们关系的事件源，对channel 的remove update 等的操作其实就是调用Poller 类当中封装的epoll_mod 和epoll_del_ 等操作
 
+**通道的功能主要总结为如下三种**
+>1. 首先我们给定Channel所属的loop以及其要处理的fd
+2. 接着我们开始注册fd上需要监听的事件，如果是常用事件(读写等)的话，我们可以直接调用接口enable***来注册对应fd上的事件，与之对应的是disable*用来销毁特定的事件
+3. 在然后我们通过set***Callback来事件发生时的回调
 
 
 ## channel 使用

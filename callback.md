@@ -60,4 +60,5 @@ void HttpData::handleWrite()
 }
 ```
 
-回调函数的设置和调用位置主要是在Channel和
+回调函数的设置和调用位置主要是在Channel当中
+>在然后我们通过set***Callback来事件发生时的回调(事件回调主要是socket缓冲区准备好读写后的处理可读可写)
