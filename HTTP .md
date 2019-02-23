@@ -1,7 +1,6 @@
 # HTTP 协议
 **与TCP/IP**
 
-
 TCP/IP负责通信，定位是哪台主机,
 
 HTTP 是应用层协议，负责处理web server 服务器上面的各种资源 
@@ -43,7 +42,7 @@ HTTP协议是放在URL 后面的，找到对应的主机后server后，server端
 1. request line method  uri 协议版本  
 2. request header
 3. 空行
-4. 请求数据
+4. 请求数据 (GET 不适用，POST 使用) request body
 
  **常见的请求头**
  
@@ -67,9 +66,10 @@ HTTP协议是放在URL 后面的，找到对应的主机后server后，server端
 - mime 多媒体类型
 
 ## http响应报文
-1. 状态行
-2. 消息报文
-3. 响应正文
+1. 状态行 status line
+2. 消息报文 headers
+3. blank line
+3. 响应正文 response body
 
 **HEAD就像GET，只不过服务端接受到HEAD请求后只返回响应头，而不会发送响应内容。当我们只需要查看某个页面的状态的时候，使用HEAD是非常高效的，因为在传输的过程中省去了页面内容。此方法经常被用来测试超文本链接的有效性，可访问性，和最近的改变。**
 
@@ -135,6 +135,26 @@ get和post方法， get 方法请求的参数是同过url显示的，而post 不
 2. put
 3. head
 
+
+一个重要的概念就是GET和POST的区别
+1. get 请求报文把请求数据放在url 之后，所以请求报文里面没有请求数据这东西，而post有，只不过位置不一样了，这也导致了数据的安全性问题
+
+![](https://github.com/wabc1994/WS/blob/master/pic/Screen%20Shot%202019-02-18%20at%201.30.57%20PM.png)
+
+
+# GET与POST 区别
+解释的时候就要使用字面意思解释和
+
+从字面意思很容易来解释就是从get 是获取服务器上面的某种资源，而POST 就
+
+1. get把请求的数据放在url上，即HTTP协议头上，其格式为： 
+以?分割URL和传输数据，参数之间以&相连。 
+数据如果是英文字母/数字，原样发送， 
+如果是空格，转换为+， 
+如果是中文/其他字符，则直接把字符串用BASE64加密，及“%”加上“字符串的16进制ASCII码”。 
+post把数据放在HTTP的包体内（requrest body）。
+2. GET的URL会有长度上的限制，则POST的数据则可以非常大
+3. POST比GET安全，因为数据在地址栏上不可见
 
 # 参考链接
 [关于HTTP协议](https://www.jianshu.com/p/80e25cb1d81a)
