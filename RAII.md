@@ -1,3 +1,4 @@
+
 # RAII
 资源获取即初始化，resource acquisition is initialization, 
 
@@ -37,7 +38,12 @@ RAII 的核心简单来说，就是为了防止内存泄漏，资源泄漏等情
 
 # 应用在项目当中
 1. 智能指针shared_ptr 和weak_ptr
-2. 自定义RAII C++实现范围互斥锁，安全上锁和释放锁
+2. 自定义RAII C++实现范围互斥锁，方便线程安全上锁和释放锁
+
+# 为何需要安全释放锁
+1. 如果程序员忘了释放锁
+2. 如何程序出现提前return 或者终止导致不能正常执行到pthread_mutex_unlock()代码块的话
+3. 这避免了在临界区中因为抛出异常或return等操作导致没有解锁就退出的问题。极大地简化了程序员编写mutex相关的异常处理代码
 
 
 
@@ -53,6 +59,173 @@ RAII 的核心简单来说，就是为了防止内存泄漏，资源泄漏等情
 
 RAII技术，很有意思，与其说是一个技术，不如说是一个编程上的窍门。我们平常编程时也可能会用到，在stl模板库里也有体现，但可能我们并不知道它的名字。
 
+
+# MutexLock 
+- pthread_mutex_t mutex
+- MutexLock() 构造函数
+	- pthread_mutex_init(& mutex)
+- ~MutexLock() 析构函数
+ 	- phthead_mutex_destroy(mutex)
+
+ 	
+
+# MutexLockGuard
+
+
+# 源码
+```java
+// @Author Lin Ya
+// @Email xxbbb@vip.qq.com
+#pragma once
+#include "noncopyable.h"
+#include <pthread.h>
+#include <cstdio>
+
+
+// 自定义RAII C++实现范围互斥锁 , 主要有两个地方使用了RAII方法， 对pthread_mutex_t mutex进行一个封装成为mutex 和一个条件变量
+// 其中构造函数当中调用pthread_mutex_init,在析构函数当中调用pthread_mutex_destroy()
+// 在析构函数当中
+
+
+// 这样定义定义之后，
+
+//https://blog.csdn.net/liuxuejiang158blog/article/details/10953305
+class MutexLock: noncopyable
+{
+public:
+    MutexLock()
+    {
+        pthread_mutex_init(&mutex, NULL);
+    }
+    ~MutexLock()
+    {
+        pthread_mutex_destroy(&mutex);
+    }
+
+    //
+    void lock()
+    {
+        pthread_mutex_lock(&mutex);
+    }
+    void unlock()
+    {
+        pthread_mutex_unlock(&mutex);
+    }
+    pthread_mutex_t *get()
+    {
+        return &mutex;
+    }
+private:
+    pthread_mutex_t mutex;
+
+// 友元类不受访问权限影响
+private:
+    friend class Condition;
+};
+
+
+// MutexLockGuard 包括一个mutex变量然后对 MutexLock 进行封装, MutexLock实际上是对 pthrea_mutex_t 变量的封装
+
+
+//下面是RAII类的标准设计方法
+class MutexLockGuard: noncopyable   //RAII class
+{
+public:
+    explicit MutexLockGuard(MutexLock &_mutex):
+    mutex(_mutex)
+    {
+        mutex.lock();   //构造时加锁
+
+    }
+    ~MutexLockGuard()
+    {
+        mutex.unlock(); //析构时解锁
+    }
+private:
+    MutexLock &mutex;
+};
+
+// 这也是避免死锁的方式，
+// 禁止复制
+
+// 使用的时候，是先定义一个mutex 对象，然后 Mutex mutex， MutexLockGurad lock(mutex)
+```
+# 使用
+
+
+对pthread_mutex_t 利用RAII技巧进行封装后，我们使用锁的方式就可以很方便了，
+
+没有封装之前
+
+```java
+      pthread_mutex_lock(mutex)
+   ······
+   操作临界区互斥变量
+   
+   ·····
+     最后一定要手动释放锁，
+     pthread_mutex_unlock(mutex)
+     
+     
+      pthread_mutex_lock(&lock);
+        // 在这里面服务器本身存放的文件，html, avi,bmp .c .doc ,,    http当中的content/type
+        if (mime.size() == 0)
+        {
+            mime[".html"] = "text/html";
+            mime[".avi"] = "video/x-msvideo";
+            mime[".bmp"] = "image/bmp";
+            mime[".c"] = "text/plain";
+            mime[".doc"] = "application/msword";
+            mime[".gif"] = "image/gif";
+            mime[".gz"] = "application/x-gzip";
+            mime[".htm"] = "text/html";
+            mime[".ico"] = "application/x-ico";
+            mime[".jpg"] = "image/jpeg";
+            mime[".png"] = "image/png";
+            mime[".txt"] = "text/plain";
+            mime[".mp3"] = "audio/mp3";
+            mime["default"] = "text/html";
+        }
+        pthread_mutex_unlock(&lock);
+```
+
+
+**封装后的使用情况MutexLockGurad**
+
+```java      
+      MutexLockGuard lock(mutex_);
+            // 如果buffer为空，那么表示没有数据需要写入文件，那么就等待指定的时间（注意这里没有用倒数计数器）
+            if (buffers_.empty())  // unusual usage!
+            {
+                // 条件变量进行等待  // 如果buffers_为空，那么表示没有数据需要写入文件，那么就等待指定的时间。
+                cond_.waitForSeconds(flushInterval_);
+            }
+
+            buffers_.push_back(currentBuffer_);
+            // 重新值
+            currentBuffer_.reset();
+
+            currentBuffer_ = std::move(newBuffer1);
+            // buffersToWrite 是后台日志部分使用的，而buffers_前台程序使用的基本情况
+            buffersToWrite.swap(buffers_);
+            if (!nextBuffer_)
+            {
+                nextBuffer_ = std::move(newBuffer2);
+            }
+   // 没有释放代码块片段的情况
+   
+   // 离开这段代码块自动释放
+            
+```
+
+在临界区代码前面直接定义一个MutexLockGurad lock(mutex_)即可
+当离开临界区代码块，这个自动调用析构函数，析构函数里面封装释放锁操作，就可以释放了这个锁
+
+
+# c++标准当中的Lock_guard
+
+- lock_guard和mutex配套使用, mutex是c++11 语言带有的#include<thread.h>C++11标准库定义了4个互斥类：
+- 我们自己在项目当中使用的是 pthread_mutex_t是Linux平台下就已经有的， 需要包含# include<pthread.h>
 
 # 参考链接
 [一种优雅的资源管理技术——RAII ](https://blog.csdn.net/u013378438/article/details/30336333)
