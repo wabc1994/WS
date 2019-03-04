@@ -15,8 +15,10 @@ Reactor释义"反应堆"，是一种事件驱动机制。和普通函数调用�
 ## reactor单线程模式
 单点问题，不能充分利用多核CPU,高负载情况下，一个线程处理的话负担
 ![](https://github.com/wabc1994/WS/blob/master/pic/%E5%8D%95%E7%BA%BF%E7%A8%8B%E6%A8%A1%E5%BC%8F.png)
+
 ## reactor多线程模型
 只有一个反应器(Reactor)线程处理客户端连接，多个线程处理I/0事件，如果
+
 ![](https://github.com/wabc1994/WS/blob/master/pic/%E5%A4%9A%E7%BA%BF%E7%A8%8B%E6%A8%A1%E5%BC%8F.png)
 
 Reactor多线程模型就是将Handler中的IO操作和非IO操作分开，操作IO的线程称为IO线程，非IO操作的线程称为工作线程!这样的话，客户端的请求会直接被丢到线程池中，客户端发送请求就不会堵塞！
