@@ -5,6 +5,12 @@
 
 2. 每个线程都有自己的前端，而整个程序共用一个后端。  业务进程， 日志线程(背景线程)
 
+本项目当中实现是异步双缓冲区的？
+
+同步日志和异步日志的区别
+
+![](https://github.com/wabc1994/HTTPServer/blob/master/datum/ASLOG.png)
+
 # 异步日志
 
 **基本概念以及流程**
@@ -13,7 +19,29 @@
  
    业务线程不是直接向磁盘中写入， 而是先写入buffer, 然后日志线程再从buffer 区当中读取
 
+
+# 同步日志的问题
 **为何要异步日志**
+
+ [一个高效的异步日志 ](https://blog.csdn.net/Shreck66/article/details/50413696)
+ 
+ 回答点：
+ 
+原始做法的缺陷：首先将要写入日志文件的内容转化为字符串，然后调用write系统调用将其写入文件，write 是阻塞式的，
+
+ 1. 其每条日志内容都会调用write,我们都知道write为系统调用，每一条就调一次它，势必系统开销会很大
+ 2. 当我们在关键的地方调用write会不会导致关键部分的代码不能即使的执行
+ 3. 应用程序业务应该尽量避免，直接磁盘I/O速度是很慢的，
+
+# 异步日志如何解决同步日志的问题
+
+ **如何接上述问题**
+ 
+ 1. 既然每条日志调用一次write 会导致系统开销很大，那么我们就设计一个buffer 将日志内容保存在buffer当中，待buffer满之后再一次性调用write 将其写入即可,这样也可以降低系统的write的效用次数
+ 2. 由于write 可能会阻塞在当前的位置，导致紧随其后的关键代码可能不能马上执行，那么我们单独开一个线程来专门执行write系统调用不久可以咯
+
+ 
+ 低延迟，高吞吐量
 
 **网络I/0与磁盘I/0不是同一个东西**
 
@@ -22,7 +50,9 @@
 假设在网络I/O线程或者业务线程当中写日志(直接向磁盘写), 写操作偶尔可能阻塞一回儿， 可能会造成响应请求会发生超时。因此，在业务线程到
 
 
-# AsyncLogging 前台程序append 追加到缓冲区
+# 基本流程
+
+## AsyncLogging 前台程序append 追加到缓冲区
 可以看到前台线程所做的工作比较简单，如果currentBuffer_够用，就把日志内容写入到currentBuffer_中，如果不够用(就认为其满了)，就把currentBuffer_放到已满buffer数组中，等待消费者线程（即后台线程）来取。并且把currentBuffer_指向nextBuffer_的buffer。
 
 1. 当前缓冲区
@@ -81,7 +111,7 @@ LogFile output
 5. Logging是最顶层的封装Logger类，AsyncLogging是其中一个对象，其中最主要是完成基本的函数操作声明最终的名字，
 
 
-## 为何要采用双缓存去的设计？
+## 为何要采用双缓存区的设计？
 
 **双缓冲区的基本流程**
 
@@ -102,16 +132,56 @@ muduo日志库是用双缓冲技术。基本思路是准备两块buffer：A和B,
 2. 日志串写入过多，日志线程来不及消费，怎么办？直接丢掉多余的日志buffer，腾出内存，防止引起程序故障。
 
 3. 什么时候唤醒日志线程从Buffer中取数据？其一是超时，其二是前端写满了一个或者多个buffer
-4. 多线程操作缓存块之间的线程安全性问题
+4. 多线程操作缓存块之间的线程安全性问题，如何减少锁的使用？
+>当当前缓冲区满了，前端业务线程通过条件变量通知后台线程
 
 
 **如何较少日志线程的睡眠唤醒**
-A,B两个缓存区， 前台线程操作A， 日志线程操作B, 什么情况下A,B缓冲区交换， 那就是当A写满，就把A和B进行交换，这样 就确保了日志线程操作的缓冲区都是有数据的
+A, B两个缓存区， 前台线程操作A， 日志线程操作B, 什么情况下A,B缓冲区交换， 那就是当A写满，就把A和B进行交换，这样 就确保了日志线程操作的缓冲区都是有数据的
 
+
+# 改进提升
+## 标准同步操作
+1. 减少业务线程和日志线程之间对于临界区资源的竞争问题。使用锁和条件变量
+
+**// Producer，前端程序 **
+
+```java
+write_log(log_statement item)
+       lock(buffer)
+            buffer.append(item)
+       consumer_event.notify()
+   
+```
+
+**// 后台消费者**
+
+```java
+read()
+   while true
+        consumer_event.wait()
+        lock(buffer)
+            data = read(buffer)
+            log_file.write(data)
+```
+**解释**
+
+>It uses a shared buffer, a vector or list, and a mutex to serialize access. An event notifies the consumer that new data is available in the buffer.
+
+**该种模式存在的问题**
+对于大部分的应用来说，该种应用的性能问题是可以接受的
+
+[Wait-free queueing and ultra-low latency logging](https://mortoray.com/2014/05/29/wait-free-queueing-and-ultra-low-latency-logging/)
+
+
+
+2. ring buffer 情况
 
 # 参考
 [多缓冲提高日志系统性能 ](https://blog.csdn.net/wwh578867817/article/details/47413977)
 
-[双缓冲区 - 没有最好，只有更好！ - CSDN博客](https://blog.csdn.net/yzhang6_10/article/details/52337726)
+[双缓冲区 - CSDN博客](https://blog.csdn.net/yzhang6_10/article/details/52337726)
 
 [双缓冲区](https://blog.csdn.net/yzhang6_10/article/details/52337726)
+
+[g2log: An efficient asynchronous logger using C++11 ](https://www.codeproject.com/Articles/288827/g-log-An-efficient-asynchronous-logger-using-Cplus)
