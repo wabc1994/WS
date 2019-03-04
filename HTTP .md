@@ -21,6 +21,8 @@ HTTP协议是放在URL 后面的，找到对应的主机后server后，server端
 
 # url request, http 的关系
 
+主机host,就是www.mywesite.com这个名字， 采用域名来表示，并且后面浏览器向DNS域名服务器请求解析该域名对应的ip地址，
+
 在浏览器当中输入一个url，浏览器就向服务器发送一个request, request就以http 的方式发送给服务器，
 
 1. 一个url 代表客户端的一个请求
@@ -156,9 +158,57 @@ post把数据放在HTTP的包体内（requrest body）。
 2. GET的URL会有长度上的限制，则POST的数据则可以非常大
 3. POST比GET安全，因为数据在地址栏上不可见
 
+# cookies 和session区别
+
+## cookies 的类型
+
+- 可以按照过期时间分为两类：会话cookie和持久cookie。
+- 会话cookie是一种临时cookie，用户退出浏览器，会话Cookie就会被删除了。
+- 持久cookie则会储存在硬盘里，保留时间更长，关闭浏览器，重启电脑，它依然存在，通常是持久性的cookie会维护某一个用户周期性访问服务器的配置文件或者登录信息。
+
+
+## cookies的
+cookies的处理步骤
+1. 服务器端向客户端发送cookies
+2. 浏览器保存cookies
+3. 之后每次http请求浏览器都会向服务器发送cookies 发送给服务器端
+
+## 服务端对产生cookies
+- set-cookies 是服务器发送给客户端的，用在客户端第一次想服务器端请求一个连接，设置一些东西，比如
+
+Set-Cookies:id=" ", domain = "服务器的域名"（放在响应头里面），  Expires=Wed, 21 Oct 2019 07:28:00 GMT;或者cookies的过期时间
+
+1. cookies的域 说白了就是服务器的域名，只有当客户端访问对应的服务器域名，客户单端才向相应的服务器发送相应的cookies
+2. cookies的路径Path
+3. cookies的Secure 
+
+
+服务器端可以设置的cookies字段
+```java
+Set-Cookie: <cookie-name>=<cookie-value> 
+Set-Cookie: <cookie-name>=<cookie-value>; Expires=<date>
+Set-Cookie: <cookie-name>=<cookie-value>; Max-Age=<non-zero-digit>
+Set-Cookie: <cookie-name>=<cookie-value>; Domain=<domain-value>
+Set-Cookie: <cookie-name>=<cookie-value>; Path=<path-value>
+Set-Cookie: <cookie-name>=<cookie-value>; Secure
+Set-Cookie: <cookie-name>=<cookie-value>; HttpOnly
+
+Set-Cookie: <cookie-name>=<cookie-value>; SameSite=Strict
+Set-Cookie: <cookie-name>=<cookie-value>; SameSite=Lax
+
+// Multiple directives are also possible, for example:
+Set-Cookie: <cookie-name>=<cookie-value>; Domain=<domain-value>; Secure; HttpOnly
+```
+## 客户端的cookies 
+cookies分为两种，一种是回话cookies和持久化cookies
+
+cookies 字段name=value是客户端在后面的请求后都放在请求头当中，header 当中就具有的情况
+
 # 参考链接
 [关于HTTP协议](https://www.jianshu.com/p/80e25cb1d81a)
 
 [HTTP协议详解](https://www.cnblogs.com/TankXiao/archive/2012/02/13/2342672.html)
 
 [HTTP长连接和短连接](https://www.cnblogs.com/0201zcr/p/4694945.html)
+
+[Cookie看这一片就OK了基本上 ](https://juejin.im/entry/5a29fffa51882531ba10da1c)

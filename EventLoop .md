@@ -71,9 +71,70 @@ event.events = channel->events();
 ```
 
 ## EventLoop 与channel的关系
-channel 的很多函数都是要通过EventLoop 来进行调用的，然后EventLoop 再调用poller 来实现
+channel 的很多函数都是要通过EventLoop 来进行调用的，然后EventLoop 再调用poller 来实现epoll系列函数， epoll系列函数操作channel和timeout 对象，进而操作linux系统底层再调用epoll_create, epoll_clt, epoll_add 函数
 
 EventLoop::loop()调用Poller::poll()获得当前活动事件的Channel列表，然后依次调用每个Channel的handleEvent()函数
+
+
+1. eventloop操作channel ,channel封装fd, eventloop的操作多个channel
+
+```java
+ // EventLoop当中的removeFromPoller， updatePoller addToPoller
+    // 其实就是标准Reactor 模式当中的 removeHandler--removeFromPoller, registerHandler(addToPoller模式) 或者
+    void removeFromPoller(shared_ptr<Channel> channel)
+    //把当前事件从EventLoop中移除
+    {
+        //shutDownWR(channel->getFd());
+        poller_->epoll_del(channel);
+    }
+
+    void updatePoller(shared_ptr<Channel> channel, int timeout = 0) {
+        poller_->epoll_mod(channel, timeout);
+    }
+
+    void addToPoller(shared_ptr<Channel> channel, int timeout = 0) {
+        // channel 其实就是socket 或者 fd, 监听的事件  ， timeout  代表设置的过期时间
+        poller_->epoll_add(channel, timeout);
+    }
+
+```
+
+2. poller 层调用底层epoll系列函数
+比如下面的
+
+```java
+ 
+ void Epoll::epoll_add(SP_Channel request, int timeout)
+{
+    // 获取通道上面的文件描述符等情况 ,每个fd 代表一个客户端的请求， 所以我们使用requset 进行代表，
+    // 获取该请求下面的套接字描述符
+    int fd = request->getFd();
+    // 查看相应的过期时间设置是否正确等情况
+    if (timeout > 0)  // 默认是0
+    {
+        //  往堆当中添加一个定时器， key, request ---timeout   一个httpdata 就是代表一个用户请求
+        
+        add_timer(request, timeout);
+        fd2http_[fd] = request->getHolder();
+    }
+    struct epoll_event event;
+    event.data.fd = fd;
+    event.events = request->getEvents();
+
+    request->EqualAndUpdateLastEvents();
+
+    fd2chan_[fd] = request;
+    if(epoll_ctl(epollFd_, EPOLL_CTL_ADD, fd, &event) < 0)
+    {
+        perror("epoll_add error");
+        fd2chan_[fd].reset();
+    }
+}
+
+
+ 
+```
+
 # 参考链接
 [muduo::EventLoop分析](https://blog.csdn.net/KangRoger/article/details/47266785)
 
