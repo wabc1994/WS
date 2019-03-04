@@ -150,8 +150,8 @@ private:
 
 // 使用的时候，是先定义一个mutex 对象，然后 Mutex mutex， MutexLockGurad lock(mutex)
 ```
-# 使用
 
+# 使用
 
 对pthread_mutex_t 利用RAII技巧进行封装后，我们使用锁的方式就可以很方便了，
 
@@ -226,6 +226,21 @@ private:
 
 - lock_guard和mutex配套使用, mutex是c++11 语言带有的#include<thread.h>C++11标准库定义了4个互斥类：
 - 我们自己在项目当中使用的是 pthread_mutex_t是Linux平台下就已经有的， 需要包含# include<pthread.h>
+
+# 智能指针
+1.什么情况下使用unique_ptr呢， 不需要共享变量的时候， 整个程序当中只有一份，比如
+>  std::unique_ptr\<EventLoopThreadPool>eventLoopThreadPool_;
+
+
+2. 需要在不同线程之间进行共享的一个变量，比如HttpData 还有Channel 之类的，则使用share_ptr
+3. 放入容器中的动态对象，使用shared_ptr包装，比unique_ptr更合适 ,比如线程池底层的存储vector
+> std::vector\<std::shared\_ptr\<EventLoopThread>> threads_;   // EventLoop线程池里面的线程
+> 
+4. 如果你没有打算在多个线程之间来共享资源的话，那么就请使用unique_ptr。
+
+
+# 什么情况下使用weak_ptr
+要解决环形引用的问题，没有特别好的办法，一般都是在可能出现环形引用的地方使用weak_ptr来代替shared_ptr。说到了weak_ptr，那下面就接着总结weak_ptr吧。
 
 # 参考链接
 [一种优雅的资源管理技术——RAII ](https://blog.csdn.net/u013378438/article/details/30336333)
