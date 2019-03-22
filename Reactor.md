@@ -14,6 +14,8 @@ Reactor释义"反应堆"，是一种事件驱动机制。和普通函数调用�
 # reactor的线程模型
 ## reactor单线程模式
 单点问题，不能充分利用多核CPU,高负载情况下，一个线程处理的话负担
+
+
 ![](https://github.com/wabc1994/WS/blob/master/pic/%E5%8D%95%E7%BA%BF%E7%A8%8B%E6%A8%A1%E5%BC%8F.png)
 
 ## reactor多线程模型
@@ -116,6 +118,25 @@ muduo：one loop per thread，主线程(MainReactor)注册listen事件，通过�
 这也是我们为何要设计多个reactor的基本原因，设计多个main Reactor 和subReactor 模式两者的区别。
 
 
+
+## Technical points
+* 使用Epoll边沿触发的IO多路复用技术，非阻塞IO，使用Reactor模式，主从reactor模型，连写的处理
+* 使用多线程充分利用多核CPU，并使用线程池避免线程频繁创建销毁的开销
+* 使用基于小根堆的定时器关闭超时请求， 定时器的添加是在epoll当中实现的，然后是在eventloop当中的loop(),epoll_wait()进行I/O事件和过期事件
+* 主线程只负责accept请求，并以Round Robin的方式分发给其它IO线程(兼计算线程)(因为只是简单的解析web静态资源等，所以在这里面)，锁的争用只会出现在主线程和某一特定线程中
+* 使用eventfd实现了线程的异步唤醒  (****)
+* 使用双缓冲区技术实现了简单的异步日志系统
+* 为减少内存泄漏的可能，使用智能指针等RAII机制
+* 使用状态机解析了HTTP请求,支持管线化
+* 支持优雅关闭连接
+* 使用openssl+ http 实现了https,安全版本https,数据传输
+
+
+# Reactor模式和Proactor模式
+
+两者的真正区别在于同步还是异步，应用程序完成I/0操作还是操作系统完成然后给应用程序发送信号，通知应用程序
+
+>Reactor与Proactor区别：真正的操作（读写）是由谁来完成的。Reactor模式中需要应用程序自己读写数据，Proactor模式中，应用程序不需要进行实际的读写操作，操作系统会读取或写入缓冲区到真正的IO设备，应用程序只需从缓冲区中读写即可
 
 # 参考链接
 [反应器(Reactor)(写得非常好)](https://blog.csdn.net/mozun1/article/details/56665489)
