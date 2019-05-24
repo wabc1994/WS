@@ -1,22 +1,27 @@
 
 # RAII
-资源获取即初始化，resource acquisition is initialization, 
+资源获取即初始化，resource acquisition is initialization, 它是 C++ 之父 Bjarne Stroustrup 提出的设计理念，其核心是把资源和对象的生命周期绑定，对象创建获取资源，对象销毁释放资源。在 RAII 的指导下，C++ 把底层的资源管理问题提升到了对象生命周期管理的更高层次。
 
 
 在系统中，资源是有限的，一旦用完必须归还给系统，否则可能会造成资源耗尽或其他问题。例如，动态分配的内存如果用完不释放会造成内存泄漏。
 
-这里说的资源不仅仅是指内存，还包括其他，例如文件描述符、网络连接、数据库连接、互斥锁等。
+>这里说的资源不仅仅是指内存，还包括其他，例如文件描述符、网络连接、数据库连接、互斥锁等。
 
-RAII当中的资源是指多个种类的情况
 
 **为何要使用RAII方式**
 
-RAII 的核心简单来说，就是为了防止内存泄漏，资源泄漏等情况产生的一种编程技巧， 我们平常在编程的过程当中，经常碰到申请堆内存。 在这些情况下面我们需要手动释放我们之前申请的资源(有借有还)。 但是由于程序出现异常获取提前return，导致程序没有运行到释放资源的代码块，导致内存泄漏等情况
+RAII 的核心简单来说，就是为了防止内存泄漏，资源泄漏等情况产生的一种编程技巧，我们平常在编程的过程当中，经常碰到申请堆内存。 在这些情况下面我们需要手动释放我们之前申请的资源(有借有还)。 但是由于程序出现异常获取提前return，导致程序没有运行到释放资源的代码块，导致内存泄漏等情况。
 
 
 **如何确保资源能够一定释放**
 
-我们知道类当中有构造函数和析构函数， 这两个东西如果我们没有定义的话，编译器会调用默认的， 所以我们可以把要申请、 使用和释放的资源分别放在类的的构造函数和析构函数当中， 这两个函数反正一定会使用，这样就确保了我们申请的资源最后都一定会得到释放，
+我们知道类当中有构造函数和析构函数，这两个东西如果我们没有定义的话，编译器会调用默认的。
+
+- 就是说在对象的创建开始一定会执行构造函数
+- 使用对象
+- 在对象作用域消失之后一定会调用析构函数
+
+所以我们可以把要申请、使用和释放的资源分别放在类的的构造函数和析构函数当中， 这两个函数反正一定会使用，这样就确保了我们申请的资源最后都一定会得到释放，
 
 >RAII能让我们优雅的做完释放资源这件事。C++标准保证任何情况下，已构造的对象最终会销毁，即它的析构函数最终一定会被调用。我们前面说过，“借”了，一定要“还”。注意到那两个红色的“一定”了吗？一个是C++中一定会调用的函数，一个是我们一定要做的事。那我们把一定要做的事情放到一定会调用的函数中可以吗？这样我们就保证了一定要做的事最终一定会发生！
 
@@ -32,13 +37,9 @@ RAII 的核心简单来说，就是为了防止内存泄漏，资源泄漏等情
 3. 析构函数（当类对象生命周期结束（或异常退出时，在进入catch语句前，会自动调用对象析构函数），调用其析构函数，托管的资源在析构函数中同时也释放掉）
 
 
- 
-
-
-
 # 应用在项目当中
 1. 智能指针shared_ptr 和weak_ptr
-2. 自定义RAII C++实现范围互斥锁，方便线程安全上锁和释放锁
+2. 自定义RAII C++实现范围互斥锁，方便线程安全上锁和确保一定会释放锁，避免一个线程长期持有某个锁，这样会容易导致其他线程始终的得不到该锁，容易造成死锁或者程序崩溃等现象。
 
 # 为何需要安全释放锁
 1. 如果程序员忘了释放锁
@@ -229,7 +230,7 @@ private:
 
 # 智能指针
 1.什么情况下使用unique_ptr呢， 不需要共享变量的时候， 整个程序当中只有一份，比如
->  std::unique_ptr\<EventLoopThreadPool>eventLoopThreadPool_;
+>  std::unique\_ptr\<EventLoopThreadPool>eventLoopThreadPool_;
 
 
 2. 需要在不同线程之间进行共享的一个变量，比如HttpData 还有Channel 之类的，则使用share_ptr
@@ -239,10 +240,177 @@ private:
 4. 如果你没有打算在多个线程之间来共享资源的话，那么就请使用unique_ptr。
 
 
+# share\_ptr 源码实现
+
+```c
+template<class T> class share\_ptr
+{   
+private 
+   typedef shared_ptr<T> this_type;
+
+public:
+
+	 typedef typename boost::detail::sp_element< T >::type element_type;
+ 
+
+}
+```
+
+
+# 实现一个简单版的share\_ptr
+
+实现的关键主要有下面几点
+1. 泛型
+ 
+2. 两个私有private 属性 T* m\_ptr 
+2. shared\_ptr（Y* p）获得指向类型T的指针p的管理权，同时引用计数置为1.这个构造函数要求Y类型必须能够转换为T类型
+
+3. shared\_ptr(shared\_ptr const & r)从另外一个shared\_ptr获得指针的管理权，同时引用计数加1，结果是两个shared\_ptr共享一个指针的管理权；
+
+
+
+```c
+#include <iostream>
+using namespace std;
+
+
+// 定义两个类型模板
+template <typename T>
+template<class T>
+
+
+封装一个class T 对象
+
+class shared_ptr{
+
+private:
+/被封装的指针
+ T* m_ptr; 
+// 无符号整数的情况
+unsigned int shared_count;   //引用计数,表示有多少个智能指针对象拥有m_ptr指向的内存块
+
+public:
+
+
+shared_ptr(T* p):m_ptr(p),shared_count(1){ }
+
+
+// 每次调用一次析构函数都要进行减一操作，如果减少到1的话，我们要进行一个判断即可
+~shared_ptr() { deconstruct();}
+
+void deconstruct(){
+
+if(shared_count == 0)//引用计数为1表示只有一个对象使用指针指向的内存块了
+       {
+    delete m_ptr;
+    m_ptr = 0;  // 这句话可以用可无
+  }
+	--shared_count;
+}
+
+//重载操作符*()， 取指针指向的内容 T& 后面的& 代表的是内容的意思情况  T& 代表返回值是数值
+
+
+T& operator*() { return *m_ptr;}
+
+// 重载操作符->()， T* 后面的数字代表的是返回值是指针
+
+
+T* operator->() { return m_ptr;}
+
+//复制构造函数, 初始化一个新的指针
+
+shared_ptr(const shared_ptr &sp):m_ptr(sp.m_ptr),shared_count(sp.shared_count)
+	{
+shared_count++;
+}
+
+//重载运算符=() *(),->() =代表操作符，()代表是否参数的清理， 
+
+shared_ptr& operator = (shared_ptr& sp){
+
+sp.shared_count++;   
+
+deconstruct();  //相当于先删掉左值,然后再通过右值赋值.
+
+m_ptr = sp.m_ptr;
+shared_count = sp.shared_count;
+return *this;
+}　
+};
+
+```
+
+
+# 优化一个智能指针情况
+
+1. 模板类， 使用的时候在类名后加一个class classname<T>
+2. 重载类*() ->() 两个操作符，
+
+```c
+template<class T>
+class SmartPtr;
+
+template<class T>
+class U_ptr{
+private:
+	 friend class SmartPtr<T>;
+	 U_ptr(T *ptr):p(ptr),count(1){};
+	 ~ U_ptr(){delete p;}
+	 int count;
+	 T *P;  // 包含一个泛型指针
+};
+
+template<typename T>
+
+class SmartPtr{
+   public:
+  // 构造函数
+   SmartPtr(T *ptr):rp(new U_ptr<T>(ptr){}；
+   SmartPtr(const SmartPtr &spo):rp(sp.rp) {++rp->count;}
+   
+   // 重载一个情况
+   SmartPtr& operator=(const SmartPtr &rhs){
+   ++ rhs.rp->count;
+   if(--rp->count==0)
+   		delete rp;
+   	rp = rhs.rp;
+   	return *this;
+   }
+   
+  ~ SmartPtr(){
+  if(--rp->count==0)
+  	  delete rp;
+  cout << "还有" << rp->count << "个指针指向基础对象" << endl;
+  }
+  
+   T& operatro*(){return *(rp->p);}
+   T* operator->(){return rp->p;}
+   
+ private: 
+ U_ptr<T> *rp;  // 辅助类对象指针
+}
+
+
+```
+
 # 什么情况下使用weak_ptr
-要解决环形引用的问题，没有特别好的办法，一般都是在可能出现环形引用的地方使用weak_ptr来代替shared_ptr。说到了weak_ptr，那下面就接着总结weak_ptr吧。
+要解决环形引用的问题，没有特别好的办法，一般都是在可能出现环形引用的地方使用weak\_ptr来代替shared\_ptr。说到了weak\_ptr，那下面就接着总结weak\_ptr吧。
+
+- 在share\_ptr每增加一次使用，我们都需要对计数器执行自增1的操作，在使用完毕后减一操作，当计数器为0的时候，就可以将这个内存进行一个回收，
+
+- weak\_ptr不会影响对象的声明周期，也就是不会使计数器增加1或者减少1的操作
+
+
 
 # 参考链接
-[一种优雅的资源管理技术——RAII ](https://blog.csdn.net/u013378438/article/details/30336333)
+- [C++ - RAII: Resource Acquisition Is Initialization | c++ Tutorial](https://riptutorial.com/cplusplus/topic/1320/raii--resource-acquisition-is-initialization)
 
-[RAII封装mutex ](https://blog.csdn.net/liuxuejiang158blog/article/details/10953305)
+- [一种优雅的资源管理技术——RAII ](https://blog.csdn.net/u013378438/article/details/30336333)
+
+- [RAII封装mutex ](https://blog.csdn.net/liuxuejiang158blog/article/details/10953305)
+
+
+-[shared_ptr源码分析 - FreeeLinux's blog - CSDN博客](https://blog.csdn.net/FreeeLinux/article/details/54647310)
+
+
