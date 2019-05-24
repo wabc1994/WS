@@ -14,6 +14,15 @@ OpenSSL连接的两个过程
 
 
 
+信息领域的SSL主要保证三个问题
+1. 信息的安全性   主要利用对称加密和非对称加密算法情况
+2. 数据的完整性    hash算法 也就是信息摘要算法 
+
+
+
+[信息摘要技术及算法介绍](https://blog.csdn.net/HackerSaillen/article/details/64906881)
+
+
 2.1. 初始化OpenSSL 
 
 2.2. 创建CTX,CTX是SSL会话环境，
