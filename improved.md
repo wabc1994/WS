@@ -9,7 +9,7 @@ SSL\_cache\_timeout
 3. 内存池优化,采用类似于nginx的方式大块内存和小块内存的分配方式
 4. epoll+ timer实现定时器
 5. 在前面部署一个最前端的 CDN内容分发网络，在客户端进行输入域名进行DNS服务的时候进行叠加一层进行服务，特别是对静态资源，相当于一个缓存，加速访问速度
-6.磁盘io优化，sendfile机制， gzip 对内存记性压缩优化
+6.磁盘io优化，sendfile机制， gzip对内存记性压缩优化
 
 
 第一版的服务器已经相对较完整了，该有的功能都已经具备了
@@ -66,13 +66,14 @@ SSL\_cache\_timeout
 ### 1.2 https session cache 缓存的使用
 
 ```c
+
 ssl_session_cache  on 机制
 
 1m能够实现的缓冲的session 具有4000多个
 
-
 ssl_session_tickets
 ssl_session_timeout 机制  默认的
+
 
 ```
 
@@ -114,10 +115,49 @@ http 建立连接的时间大概是114ms, hhts建立的时间大概是436ms, 也
 
 
 ## 2. 内存池
+
+注意内存分配器和内存池
+
+
+
 - 智能指针share_ptr， unique_ptr，
 - nginx 大块内存和小块内存优化精细化管理
 - 使用google的 gperftools 当中的tcmalloc替代gli当中的malloc, 特别是在高并发的情况下，降低系统的负载
 - 内存池的设计（重点在于如何设计一个内存的思路）
+
+
+首先你说一下我们在项目当中是如何设计的
+>直接利用原有系统的内存设计方案，可以讲下Linux的内存管理系统，比如，每个连接需要分配固定的4k的网络读写buffer，
+
+net.ipv4.tcp_rmem =. 8192
+net.ipv4.tcp_wmem = 8192 
+
+一个套接字对应上面两个东西，编程方面主要是通过SO_SNDBUF,SO_RCVBUF 
+
+
+
+###  重要思想情况
+重点在于关注一个内存池的设计思路， 
+
+内存分大小方法，chunk情况，
+- 大块内存分配
+- 小块内存分配
+
+管理内存的基础数据结构
+- 空闲链表
+- 多线程下内存分配的问题，为每个线程分配cache,然后小对象内存的分配都是通过 
+
+
+大内存使用mmap和munmap()系统调用， 大内存是128k大小的内存块,小内存是小于128k,
+
+
+### 现有的注明分配器
+1. glibc 的ptmalloc
+
+[理解 glibc malloc：malloc() 与 free() 原理图解 - 猫科龙 ](https://blog.csdn.net/maokelong95/article/details/52006379)
+2. jemalloc 是facebook推出的
+3. gpertool 的tcmalloc
+
 
 
 
@@ -170,17 +210,64 @@ http 建立连接的时间大概是114ms, hhts建立的时间大概是436ms, 也
 
 比如现在的软负载 -- LVS就是利用NAT协议搞的，
 
+还分为以下的情况进行负载均衡
+1. HTTP 负载均衡
+2. DNS 负载均衡问题
+3. ip地址负载均衡
 
 ## slb服务器负载均衡
-
-
 
 server load balance 问题，  slb 关注的是如何对部署在云服务器ECS上面的应用进行负载均衡个， 因为我们的java应用最后都是部署在 云武器上面的
 
 是阿里云开源的产品
 
-主要包括三个方面的内容，四层负载均衡， 七层负载均衡和控制系统
+主要包括三个方面的内容，四层负载均衡，七层负载均衡和控制系统
 
 - 四层负载均衡，主要是采用 LVS(linux, virtual server)，并根据云计算需求对其进行了定制化开发，四层负载均
 - 七层负载均衡， 采用来本身开源的Tengine，七层负载均衡就是采用nignx来处理的
 - 控制系统， 用于配置
+
+
+# CK10的问题
+
+这个也是我们要考虑的问题,情况
+
+1. 说白了也就是所谓的线程模型的问题
+ 从一个连接一个进程或者线程，到一个一个线程监控多个连接， 也就是I/O多路复用，
+ 
+ I/O多路复用从最开始的select()模型到 epoll(), 再到最后面的协程机制等问题，
+ 
+每一个协程也是有自己协程stack, 一开始是2k大小，然后可以自己增加即可，
+
+# 磁盘优化
+
+1. sendfile机制，
+2. 开启压缩功能模块gzip机制
+
+关于这个问题之前我们需要知道，两点：page cache是磁盘对文件数据的缓存，从磁盘读取的缓存数据用于之后的使用， buffer cache是对设备数据的缓存， 
+
+
+sendfile，mmap(),splice()操作都是Linux下面的拷贝技术，
+
+
+先来看下一个存储在磁盘当中的数据是发送到网络当中去的，
+
+page cache 是利用了局部性原理的，比如write ahead和read ahead原理情况，提高磁盘的读取速度
+
+![VQDKIS.png](https://s2.ax1x.com/2019/05/31/VQDKIS.png)
+
+[![VQD3xs.md.png](https://s2.ax1x.com/2019/05/31/VQD3xs.md.png)](https://imgchr.com/i/VQD3xs)
+
+**sendfile使用场景**
+- 局限于基于文件服务的网络应用程序，比如web服务器，据说，
+- 主要应用集中在不对磁盘的数据文件进行修改的操作，直接发送到网络当中去的，
+
+
+
+磁盘的读取优化是一个很重要的方面，比如kafka等消息队列，就是将数据持久化到磁盘当中，利用磁盘的顺序读写获得极大的吞吐量，
+
+# 安全性方面
+主要用于解决自己服务器网站的安全性方面存在的问题
+1. XSS攻击
+2. SQL注入攻击
+3. CSRF攻击，主要是利用session攻击和cookies攻击

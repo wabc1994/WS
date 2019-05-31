@@ -1,3 +1,6 @@
+
+[toc]
+
 # spring-boot-seckill项目总结
 
 
@@ -26,6 +29,11 @@
 2. 也可以在应用层的AOP实现
 
 
+## 降级
+在限流之后，用户的请求是得不到响应的，是没有立即返回结果内，因此为了提升用户体验，我们是针对没有抢购成功的请求，进行一个服务降级的处理
+
+
+
 ## 排队
 将用户的请求变成有序的情况，顺便大量的请求搞成有序的一个队列，实现方式主要有下面几种情况，方便程序进行一个有序的处理。
 
@@ -35,11 +43,15 @@
 4. 分布式消息队列，分布在不同的机器上面，分布式消息队列与内存队列是有区别的情况，
 
 
+
+
 ### Disrupto模块应用
 为何要使用Disruptor
 >基于内存的无锁队列，可以高效地实现生产者和消费者的情况，
 
 1. ringbuffer设置为1024个大小的情况
+2. 生产者是前端的用户请求
+3. 消费者是后面的
 
 
 ## nginx限流模块开发
@@ -48,9 +60,81 @@
 
 ## 分布式锁模块
 
+要明白为何要使用分布式锁的基础功能，
+
+1. 比如之前说的超卖，下单减库存等操作要保证原子性，既然在这种情况 比如，i++ 类似于这种操作，并不是原子操作，在单台机器上我们的操作可能就是利用synchronized或者锁这种机制确保代码的原子性， 
+2.  因此我们需要进行一个操作确保原子性，并且因为代码是部署在不同的机器上面，因此需要在该基础上增加一个分布式锁
+
+
+### 基于redission的分布式锁机制
+
+- redission是基于redis 进行改进的
+- 获取分布式锁工具类 RedissLockUtil 
+
+```java
+private static RedissonClient redissonClient; //代表一个客户端
+
+
+然后尝试获取锁的机制 
+
+获取锁后进行一些系列判断，判断是否获取锁成功，然后可以进行
+
+
+public void testReentrantLock(RedissonClient redisson) {
+		RLock lock = redisson.getLock("anyLock");
+		try {
+			// 1. 最常见的使用方法
+			// lock.lock();
+			// 2. 支持过期解锁功能,10秒钟以后自动解锁, 无需调用unlock方法手动解锁
+			// lock.lock(10, TimeUnit.SECONDS);
+			// 3. 尝试加锁，最多等待3秒，上锁以后10秒自动解锁
+			boolean res = lock.tryLock(3, 10, TimeUnit.SECONDS);
+			if (res) {
+				// 成功
+				// do your business
+			}
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		} finally {
+			lock.unlock();
+		}
+	}
+
+```
+
+如何解决死锁以及超时等待的问题？
+
+> 尝试获取锁，最多等待3秒，上锁以后10秒后自动解锁
+
+
+# 分布式session以及单点登录的问题
+
+抢购项目当中，一般来讲都是服务器都是部署在多个机器上面，客户端的请求有时候请求映射到A服务器，如果过下一次的请求映射到B服务器，不可能又要用户重新登录两次，因此我们需要做一个单点登录的问题， 
+在一个服务不同模块之间共用同一个session,
 
 
 
+
+1. session复制
+2. session集群第三方缓存
+3. 基于cookies的session机制情况，客户端向服务器发送请求的时候将sessionid放在cookies id里面的基本情况
+4. 粘性session，粘性Session是指将用户锁定到某一个服务器上
+5. 非粘性session异同点
+6. 基于数据的session，持久化session机制
+
+
+解决方案：将用户登录模块抽取出来，作为一个基础模块， 然后将session存储在独立redis缓存服务器中，不同模块判断客户是否登录都是到redis服务器当中去读取即可，如果session存在redis，就代表用户已经登录了，就不需要再次登录了，
+
+
+[集群/分布式环境下5种session处理策略](https://blog.csdn.net/woaigaolaoshi/article/details/50902010)
+
+
+# dao 层设计 repository
+```java
+public interface SeckillRepository extends JpaRepository<Seckill, Long> {
+    // 只有最基本的CRUD功能情况, 所有也就没有多少代码可以写了
+}
+```
 
 
 # others
@@ -92,3 +176,7 @@ websocket主要是在服务器和客户端浏览器之间进行一个通信，�
 要保证上述两个步骤是一个原子操作， 
 
 解决之道：声明式事务情况,情况
+
+## 基础组件如何在代码中使用
+
+基础组件代码都是放在另一个包，实现了之后我们可以service层代码使用这些东西即可， 如果是工具类其实可以直接搞成静态方法类，直接使用类名字就可以使用了
