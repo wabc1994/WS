@@ -16,10 +16,14 @@
 如何不是独占模式的话，就是下面该种情况了，多个进程共用一个epfd, 那么就会阻塞在epoll\_wait处，多个进程等待同一个epfd, 这就是问题，所以设置为epoll exclusive 后，每个进程以独占的方式exclusive 占用一个epfd, 这样就避免了多个进程在同一个epfd 处等待的情况
 
 
-# yiuzhong1
+
+# 另一种解释
 
 还有另一种解释的就是，同一个fd可能放入多个epfd，导致惊群问题，多个epfd句柄当中监听同一个socket所导致的的惊群问题，设置为独占模式之后就变成了 一个fd 只能放入一个epfd,
 
+
+#注意
+epollexclusive只能与epoll_clt_add 方法使用，并且是放在add 
 
 
 
