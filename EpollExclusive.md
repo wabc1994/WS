@@ -23,7 +23,7 @@
 
 
 #注意
-epollexclusive只能与epoll_clt_add 方法使用，并且是放在add 
+epollexclusive只能与epoll_clt_add 方法使用，并且是放在第二个参数
 
 
 

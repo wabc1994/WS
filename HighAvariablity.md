@@ -14,3 +14,25 @@
 2. 信号量隔离 java semaphore
 
 资源隔离之后要做的事情可能就是java
+
+两个机制 HystrixCommand机制 和HystrixObservableCommand
+
+## 调用失败
+调用失败时候的fallback 机制， 不同服务调用失败时候的fallback 机制，说白了就是回退机制，降级处理之类的
+
+
+fallback(降级) 回退
+
+主要有以下几种情况会被fallback所捕获，
+1. FAILURE：执行失败，抛出异常，比如rpc 调用过程失败之类的情况，
+2. TIMEOUT: 执行超时
+3. SHORT\_CIRCUITED : 断路器打开
+4. THREAD\_POOL\_REJECTED:  线程池拒绝
+5. SEMAPHORE\_REJECTED : 信号量拒绝情况
+6. 
+
+getcallback 降级重试之类的情况，
+
+
+# rpc 学习
+

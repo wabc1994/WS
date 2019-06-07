@@ -3,9 +3,6 @@
 
 # spring-boot-seckill项目总结
 
-
-
-
 项目总体是怎么搞的？
 
 
@@ -29,8 +26,8 @@
 2. 也可以在应用层的AOP实现
 
 
-## 降级
-在限流之后，用户的请求是得不到响应的，是没有立即返回结果内，因此为了提升用户体验，我们是针对没有抢购成功的请求，进行一个服务降级的处理
+## 服务降级
+在限流之后，用户的请求是得不到响应的，是没有立即返回结果内，因此为了提升用户体验，我们是针对没有抢购成功的请求，进行一个服务降级的处理， 直接推推送到客户端的,
 
 
 
@@ -56,7 +53,66 @@
 
 ## nginx限流模块开发
 
-用户前端请求先经过CDN加速，然后再进入nginx限流模块， nginx限流主要是通过在controller层来实现, nginx主要是API接口进行一个限流
+用户前端请求先经过CDN加速，然后再进入nginx限流模块， nginx限流主要是通过在controller层来实现, nginx主要是API接口进行一个限流，因为后端部署了两台机器，这里面也可以成为分布式限流的功能了，
+
+nginx 
+
+```java
+#统一在http域中进行配置
+#限制请求
+limit_req_zone $binary_remote_addr $uri zone=api_read:20m rate=50r/s;
+#按 ip配置一个连接 zone
+limit_conn_zone $binary_remote_addr zone=perip_conn:10m;
+#按server配置一个连接 zone
+limit_conn_zone $server_name zone=perserver_conn:100m;
+server {
+        listen       80;
+        server_name  seckill.52itstyle.com;
+        index index.jsp;
+        location / {
+              #请求限流排队通过 burst默认是0
+              limit_req zone=api_read burst=5;
+              #连接数限制,每个IP并发请求为2
+              limit_conn perip_conn 2;
+              #服务所限制的连接数(即限制了该server并发连接数量)
+              limit_conn perserver_conn 1000;
+              #连接限速
+              limit_rate 100k;
+              proxy_pass      http://seckill;
+        }
+}
+# 负载集群配置， nginx 作为负载均衡模块，
+upstream seckill {
+        fair;
+        server  172.16.1.120:8080 weight=1  max_fails=2 fail_timeout=30s;
+        server  172.16.1.130:8080 weight=1  max_fails=2 fail_timeout=30s;
+ }
+```
+
+后端主要是搞了两台服务器做一个负载均衡模块，
+
+
+### 限流
+
+在这里面的限流情况都是根据ip地址来报的，如果请求数目超过一定的量，就会返回一个http503的错误码的情况 503代表service unavailable，代表服务不可用
+- limit_req_zone: 是限流声明
+
+针对nginx，单个ip地址，每秒50个读次，写10次
+
+
+zone=one\_ :10m 代表生成一个大小为10M,名字为one 的内存区域，用来存储访问的频次消息，
+
+burst = 5 设置为大小为5的缓冲队列，在缓冲队列中的请求会慢慢等待处理，
+
+### 负载均衡模块
+
+1. max\_fail 
+
+这个是nginx在负载均衡功能中，用于判断后端节点状态，所用到的两个参数， 30m秒进行探测
+
+Nginx基于连接探测，如果发现后端异常，在单位周期为fail\_timeout设置的时间，中达到max\_fails次数，这个周期次数内，如果后端同一个节点不可用，那么接将把节点标记为不可用，并等待下一个周期（同样时常为fail\_timeout）再一次去请求，判断是否连接是否成功。
+
+nginx只有当有访问时后，才发起对后端节点探测, 如果当前节点挂了的话，会转发给其他节点的情况，
 
 ## 分布式锁模块
 
@@ -68,18 +124,16 @@
 
 ### 基于redission的分布式锁机制
 
+锁的实现我是基于redisson组件提供的RLock, 底层还是基于setnx 命令操作
+
 - redission是基于redis 进行改进的
 - 获取分布式锁工具类 RedissLockUtil 
 
 ```java
 private static RedissonClient redissonClient; //代表一个客户端
-
-
 然后尝试获取锁的机制 
 
 获取锁后进行一些系列判断，判断是否获取锁成功，然后可以进行
-
-
 public void testReentrantLock(RedissonClient redisson) {
 		RLock lock = redisson.getLock("anyLock");
 		try {
@@ -107,12 +161,56 @@ public void testReentrantLock(RedissonClient redisson) {
 > 尝试获取锁，最多等待3秒，上锁以后10秒后自动解锁
 
 
+在这里面我们有一个问题，就是使用了redission 实现了分布式锁， 是已经封装好的了，面试过程当中肯定会如果由你来实现，你会怎么实现这个问题
+
+
+- [redisson/RedissonLock.java 分布式锁底层实现原理](https://github.com/redisson/redisson/blob/f01fd0823b86a609ed7c6f09620f9996a71ef827/redisson/src/main/java/org/redisson/RedissonLock.java)
+- [redisson实现分布式锁原理](https://www.cnblogs.com/ASPNET2008/p/6385249.html)
+
+## 原理实现级别
+
+1. 加锁
+ 最简单的方法是使用setnx命令。key是锁的唯一标识，按业务来决定命名。比如想要给一种商品的秒杀活动加锁，可以给key命名为 “lock_sale_商品ID” 。而value设置成什么呢？我们可以姑且设置成
+ 
+1. 加锁的伪代码如下：
+ 
+```java
+setnx（key，1）
+```
+
+当一个线程执行setnx返回1，说明key原本不存在，该线程成功得到了锁；当一个线程执行setnx返回0，说明key已经存在，该线程抢锁失败。
+
+
+
+2. 超时解锁
+  
+  setnx的key必须设置一个超时时间，以保证即使没有被显式释放，这把锁也要在一定时间后自动释放。setnx不支持超时参数，所以需要额外的指令，
+  
+```java
+
+expire(key,30)
+
+```
+
+综合起来，我们分布式锁实现的第一版伪代码如下：
+
+```java
+if（setnx（key，1） == 1）{
+expire（key，30）
+try {
+do something ......
+} finally {
+del（key）
+}
+
+
+```
+
+
 # 分布式session以及单点登录的问题
 
 抢购项目当中，一般来讲都是服务器都是部署在多个机器上面，客户端的请求有时候请求映射到A服务器，如果过下一次的请求映射到B服务器，不可能又要用户重新登录两次，因此我们需要做一个单点登录的问题， 
 在一个服务不同模块之间共用同一个session,
-
-
 
 
 1. session复制
@@ -169,7 +267,7 @@ websocket主要是在服务器和客户端浏览器之间进行一个通信，�
 一开始一共100个商品，现在成功被抢购了99件，库存只有1个了，但是此时要是有很多了客户流量请求到系统，如果同时读取到库存为1，就代表可以购买成功， 这样就会出现超卖的问题？
 
 一个抢购成功包括两个步骤
-
+-
 1. 减库存
 2. 创建秒杀订单成功,也就是要在数据库当中创建一个章userid, goodid成功，然后持久化到磁盘当中去，也就是要落地
 
@@ -179,4 +277,48 @@ websocket主要是在服务器和客户端浏览器之间进行一个通信，�
 
 ## 基础组件如何在代码中使用
 
-基础组件代码都是放在另一个包，实现了之后我们可以service层代码使用这些东西即可， 如果是工具类其实可以直接搞成静态方法类，直接使用类名字就可以使用了
+**基础组件代码都是放在另一个包， 搞成一个个bean 实现了之后我们可以service层代码使用这些东西即可， 如果是工具类其实可以直接搞成静态方法类，直接使用类名字就可以使用了**
+
+
+所以的基础组件代码都是为了service服务的，或者将
+
+
+```java
+public class SeckillDistributedController {
+	private final static Logger LOGGER = LoggerFactory.getLogger(SeckillDistributedController.class);
+	
+	private static int corePoolSize = Runtime.getRuntime().availableProcessors();
+	//调整队列数 拒绝服务
+	private static ThreadPoolExecutor executor  = new ThreadPoolExecutor(corePoolSize, corePoolSize+1, 10l, TimeUnit.SECONDS,
+			new LinkedBlockingQueue<Runnable>(10000));
+	
+	@Autowired
+	private ISeckillService seckillService;
+	@Autowired
+	private ISeckillDistributedService seckillDistributedService;
+	@Autowired
+	private RedisSender redisSender;
+	@Autowired
+	private KafkaSender kafkaSender;
+	@Autowired
+	private ActiveMQSender activeMQSender;
+
+	@Autowired
+	private RedisUtil redisUtil;
+	
+	@ApiOperation(va
+```
+
+
+ 
+
+## 消息队列
+基础的消费者就是有对个里面的数据做一些处理， 比之类，方法参数就是从broker当中取出的数据，
+
+然后生产者的话可以直接使用kakfa提供的接口之类
+
+##  resource 包下面的东西如何java 文件进行交互的
+
+
+# dao
+一个mapper接口，对应资源文件下面的mapper文件情况
