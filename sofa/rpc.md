@@ -21,9 +21,25 @@ callback 对象
 4. one way 调用
 
 # proxy代理模块
-代理类生成存根stub，解决客户端如何保存本次调用的参数，作为客户端与rpc 交互的中间层
+代理类生成存根stub，解决客户端如何保存本次调用的参数，作为客户端与rpc 交互的中间层， 
 
 
+
+client 传来来一个RPCrequest, 然后交给代理类来处理，
+
+客户端的代理对象获取封装进入一个启动类设置里面去， 在构造函数里面搞好这些配置类的情况
+
+
+ ClientProxyInvoker也是一个可执行的invoker类情况
+
+proxy 将客户端的一次调用进行一个拦截，处理本次的请求情况
+
+
+```java
+import com.alipay.sofa.rpc.bootstrap.ConsumerBootstrap;
+import com.alipay.sofa.rpc.config.ConsumerConfig;
+import com.alipay.sofa.rpc.context.RpcInternalContext;
+```
 # router模块
 
 路由寻址模块，找到ip地址， 以及端口号
@@ -47,6 +63,12 @@ filter chain机制,
 
 比如netty等模块的作用
 
+
+# 如何引用一个服务
+
+dubbo export
+
+dubbo reference 情况
 
 
 ## 序列化机制 
