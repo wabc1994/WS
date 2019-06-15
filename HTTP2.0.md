@@ -31,7 +31,7 @@ SPDY
 # http2优点
 
 1. 减少网络延迟，
-2. 
+2. 带宽不是问题了，
 
 
 # http1 
@@ -62,7 +62,7 @@ http2.0当中的多路复用就有两层含义，在
 
 
 **流**
-流（stream），一个完整的请求-响应数据交互过程，具有如下几个特点
+流（stream），一个完整的请求-响应数据交互过程，具有如下几个特点，一个请求就是一个流，一个TCP可以同时发送多个流，就是多个http请求的情况
 
 **多路复用**
 
@@ -71,6 +71,17 @@ http2.0当中的多路复用就有两层含义，在
 
 
 **帧**
+在应用层与SSL层之间增加一个二进制帧， HTTP1.1里面对应的请求行对应 
+
+- 头帧 Header frame
+- 数据帧 Data frame
+
+
+# get和post的请求
+1. 发送的数据数量问题tcp
+2. 幂等性问题，get 请求是幂等性，而post则不是幂等性的情况，
+
+[![VIz0JI.md.png](https://s2.ax1x.com/2019/06/15/VIz0JI.md.png)](https://imgchr.com/i/VIz0JI)
 
 # 参考链接
 [HTTP2流和多路复用](https://blog.csdn.net/yangguosb/article/details/80639336)
